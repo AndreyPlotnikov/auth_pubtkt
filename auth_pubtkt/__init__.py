@@ -8,6 +8,7 @@ import hashlib
 import base64
 import Cookie
 import logging
+import time
 from M2Crypto import RSA, DSA
 
 
@@ -234,7 +235,7 @@ class AuthPubTKTMiddleware(object):
     """
     
     def __init__(self, app, pubkey, cookie_name='auth_pubtkt',
-                 logname=None, login_url=None, cache=None):
+                 logname=None, login_url=None, cache=None, required_tokens=()):
         """Initializes AuthPubTKTMiddleware object.
 
         ``pubkey``:
@@ -255,6 +256,9 @@ class AuthPubTKTMiddleware(object):
             Instance of beaker.cache.Cache object.
             It's used for caching succesfully parsed tickets.
             
+        ``required_tokens``:
+            Sequence of tokens which are required to consider ticket as valid.
+            
         """
         self.app = app
         self.pubkey = pubkey
@@ -264,6 +268,7 @@ class AuthPubTKTMiddleware(object):
         self.log = logging.getLogger(logname)
         self.login_url = login_url
         self.cache = cache
+        self.required_tokens = required_tokens
 
 
     @classmethod
@@ -285,6 +290,11 @@ class AuthPubTKTMiddleware(object):
         except Exception, err:
             raise ConfigError('Error loading public key %s: %s' % (authpubkey, str(err)))
 
+        if 'required_tokens' not in kw:
+            rt = config.get(prefix+'required_tokens', '').strip()
+            if rt:
+                kw['required_tokens'] = rt.split(',')
+                
         def asbool(v, param):
             v = v.lower()
             if v in ('true', 'yes', 'on', '1'):
@@ -304,7 +314,7 @@ class AuthPubTKTMiddleware(object):
                     v = asbool(v, k)
                 kw[p] = v
 
-        return cls(app, pubkey, keytype, **kw)
+        return cls(app, pubkey, **kw)
 
 
     def __call__(self, environ, start_response):
@@ -329,12 +339,23 @@ class AuthPubTKTMiddleware(object):
                 self.log.debug(str(err))
                 return self.app(environ, start_response)
 
+            if fields['validuntil'] <= time.time():
+                self.log.debug("Skiping expired ticket for user %s" % fields['uid'])
+                return self.app(environ, start_response)
+
             if 'cip' in fields:
                 if fields['cip'] != environ['REMOTE_ADDR']:
                     self.log.debug("Ticket's IP (%s) does not match the REMOTE_ADDR (%s)" % \
                                    (fields['cip'], environ['REMOTE_ADDR']))
                     return self.app(environ, start_response)
+
+            if self.required_tokens is not None:
+                for t in self.required_tokens:
+                    if t not in fields['tokens']:
+                        self.log.debug('Skipping ticket for user %s: required token %s is not found.' % (fields['uid'], t))
+                        return self.app(environ, start_response)
                     
+                        
             environ['REMOTE_USER'] = fields['uid']
             tokens = fields.get('tokens', [])
             environ['REMOTE_USER_TOKENS'] = ','.join(tokens)
