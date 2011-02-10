@@ -148,6 +148,8 @@ def parse_ticket(ticket, pubkey, verify_sig=verify_sig):
         if tokens == ['']:
             tokens = []
         fields['tokens'] = tokens
+    else:
+        fields['tokens'] = []
 
     if 'graceperiod' in fields:
         try:
