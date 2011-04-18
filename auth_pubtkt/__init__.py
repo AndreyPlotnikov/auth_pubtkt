@@ -377,7 +377,7 @@ class AuthPubTKTMiddleware(object):
         if environ['REQUEST_METHOD'] == 'GET' and self.login_url:
             r = unauth_start_response()
             ret = self.app(environ, r)
-            if r.status.startswith('401'):
+            if r.status.startswith('401') and not environ.get('auth_pubtkt.no_login_redirect'):
                 start_response('302 Found', [('Location', self.login_url)])
                 return []
             start_response(r.status, r.headers, r.exc_info)

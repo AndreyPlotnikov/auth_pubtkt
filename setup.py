@@ -1,13 +1,16 @@
 from setuptools import setup, find_packages
 import sys, os
 
-version = '0.1'
+version = '0.2'
+
+def read(fname):
+    return open(os.path.join(os.path.dirname(__file__), fname)).read()
+
 
 setup(name='auth_pubtkt',
       version=version,
       description="This software implements mod_auth_pubtkt authentication for Python world.",
-      long_description="""\
-""",
+      long_description=read('README.txt'),
       classifiers=[
       'Development Status :: 3 - Alpha',
       'Environment :: Web Environment',
@@ -28,6 +31,7 @@ setup(name='auth_pubtkt',
           # -*- Extra requirements: -*-
       ],
       entry_points="""
-      # -*- Entry points: -*-
+      [paste.app_factory]
+      authrequest = auth_pubtkt.authrequest:make_app
       """,
       )
